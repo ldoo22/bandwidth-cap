@@ -6,13 +6,18 @@ stop() { kill -s TERM $TOP_PID; }
 error() { echo "Error: $1"; stop; }
 
 
-# Docker helpers ##############################################################
-dockerbasenstalled() {
+# Docker ######################################################################
+docker_installed() {
   command -v docker > /dev/null 2>&1 && return 0 || return 1
 }
 
 deamon_running() {
   docker ps -q --filter "name=vnstat" | grep -q . && return 0 || return 1
+}
+
+vnstat_conf_location() {
+  SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )"
+  echo "$SCRIPT_DIR/vnstat.conf"
 }
 
 launch_daemon() {
@@ -23,9 +28,22 @@ launch_daemon() {
     -v vnstat_data:/var/lib/vnstat \
     -v /etc/localtime:/etc/localtime:ro \
     -v /etc/timezone:/etc/timezone:ro \
+    -v $(vnstat_conf_location):/etc/vnstat.conf \
     --name vnstat \
-    vergoh/vnstat
+    vergoh/vnstat:2.12
 }
+
+if ! docker_installed; then
+  error "Docker is not installed"
+fi
+
+if ! deamon_running; then
+  echo "Launching daemon..."
+  launch_daemon
+else
+  echo "Daemon is already running"
+fi
+
 
 # Helper functions ############################################################
 iflist() { docker exec vnstat vnstat --iflist; }
@@ -86,7 +104,8 @@ usage() {
   echo "  -a, --exceeded_action: Action to take when limit is exceeded"
   echo "  -p, --period: Period to check the limit. Can be m, d or h for" \
        " month, day or hour respectively"
-  echo "  -s, --sleep: Sleep time between checks in seconds (default: 60)"
+  echo "  -s, --sleep: Optional sleep time between checks in seconds" \
+       " (default: 60)"
   echo "  -f, --log_file: Optional log file to write the output"
 }
 
@@ -151,7 +170,7 @@ if [[ -z $exceeded_action ]]; then
 fi
 
 if [[ -z $sleep_time ]]; then
-  sleep_time=1
+  sleep_time=60
 fi
 
 if ! [[ $sleep_time =~ ^[1-9][0-9]*$ ]]; then
@@ -213,17 +232,6 @@ log_current_bandwidth() {
   echo "  $tx_msg"
   echo "  $total_msg"
 }
-
-if ! dockerbasenstalled; then
-  error "Docker is not installed"
-fi
-
-if ! deamon_running; then
-  echo "Launching daemon..."
-  launch_daemon
-else
-  echo "Daemon is already running"
-fi
 
 while true; do
   log_current_bandwidth $interfaces $type $limit $unit $period
