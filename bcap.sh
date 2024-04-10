@@ -102,14 +102,16 @@ usage() {
   echo "  -l, --limit: Limit to check"
   echo "  -u, --unit: Unit of the limit"
   echo "  -a, --exceeded_action: Action to take when limit is exceeded"
-  echo "  -p, --period: Period to check the limit. Can be m, d or h for" \
-       " month, day or hour respectively"
+  echo "  -p, --period: Period to check the limit until. Can be m, d or h for" \
+       " month, day or hour respectively. Upon each month, day or hour the " \
+       " total bandwidth usage is reset to 0."
   echo "  -s, --sleep: Optional sleep time between checks in seconds" \
        " (default: 60)"
-  echo "  -f, --log_file: Optional log file to write the output"
+  echo "  -e, --echo_period: Optional period to echo the current bandwidth" \
+    " usage, instead of echoing every vnstat check. Period defined in seconds" \
+    " (default: 0). Set to 0 to disable. Useful for not cluttering the logs."
 }
 
-# Parse arguments
 while [[ "$#" -gt 0 ]]; do
   case $1 in
     -h|--help) usage; exit 0 ;;
@@ -120,7 +122,7 @@ while [[ "$#" -gt 0 ]]; do
     -a|--exceeded_action) exceeded_action="$2"; shift ;;
     -p|--period) period="$2"; shift ;;
     -s|--sleep) sleep_time="$2"; shift ;;
-    -f|--log_file) log_file="$2"; shift ;;
+    -e|--echo_period) echo_period="$2"; shift ;;
     *) echo "Unknown parameter passed: $1"; exit 1 ;;
   esac
   shift
@@ -177,12 +179,16 @@ if ! [[ $sleep_time =~ ^[1-9][0-9]*$ ]]; then
   error "Sleep time must be a positive non zero number"
 fi
 
-# List configuration
+if [[ -z $echo_period ]]; then
+  echo_period=0
+fi
+
 echo "Interfaces: $interfaces"
 echo "Type: $type"
 echo "Limit: $limit"
 echo "Unit: $unit"
 echo "Exceeded action: $exceeded_action"
+echo "Echo period: $echo_period"
 
 # Main ########################################################################
 execute_exceeded_action() {
@@ -233,8 +239,12 @@ log_current_bandwidth() {
   echo "  $total_msg"
 }
 
+last_log_time=0
 while true; do
-  log_current_bandwidth $interfaces $type $limit $unit $period
+  if [ $(date +%s) -ge $((last_log_time + echo_period)) ]; then
+    log_current_bandwidth $interfaces $type $limit $unit $period
+    last_log_time=$(date +%s)
+  fi
 
   if ! period_exceeded $interfaces $type $limit $unit $period; then
     execute_exceeded_action

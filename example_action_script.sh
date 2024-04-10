@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# Send an email notification using SendGrid
+echo 'Sending email notification...'
 json_data='{
   "personalizations": [
     {
@@ -18,7 +18,7 @@ json_data='{
   "content": [
     {
       "type": "text/plain",
-      "value": "You have exceeded your bandwidth limit for this month"
+      "value": "You have exceeded your bandwidth limit for this month, system will be shut down."
     }
   ]
 }'
@@ -28,11 +28,18 @@ curl --request POST \
   --header 'Content-Type: application/json' \
   --data "$json_data"
 
-# # Stop all network traffic except SSH
-# sudo ufw enable
-# sudo ufw default deny incoming
-# sudo ufw default deny outgoing
-# sudo ufw allow 22
+echo 'Stopping all Docker containers'
+docker stop $(docker ps -a -q)
+docker rm $(docker ps -a -q)
 
-# # shutdown the system
-# sudo shutdown now
+echo 'Blocking all incoming and outgoing traffic...'
+sudo ufw --force reset
+sudo ufw default deny incoming
+sudo ufw default deny outgoing
+sudo ufw allow OpenSSH
+sudo ufw allow ssh
+sudo ufw allow 22
+sudo ufw --force enable
+
+echo "Shutting down the system..."
+sudo shutdown now
