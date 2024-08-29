@@ -46,8 +46,7 @@ fi
 
 
 # Helper functions ############################################################
-iflist() { docker exec vnstat vnstat --iflist; }
-list_interfaces() { iflist | awk '{for(i=3; i<=NF; i++) printf "%s ", $i}'; }
+list_interfaces() {  docker exec vnstat vnstat --iflist 1; }
 
 base() { docker exec vnstat vnstat -i $@; }
 
@@ -95,9 +94,10 @@ get_usage() {
 usage() {
   echo "Usage: $0"
   echo "  -h, --help: Display this help message"
-  echo "  -i, --interfaces: List available interfaces. Can also provide" \
-       " multiple interfaces to monitor, by separating them with a '+' sign." \
+  echo "  -i, --interfaces: List of interfaces interfaces to monitor" \
+       ", by separating them with a '+' sign." \
        " Alternatively, use 'all' to monitor all available interfaces"
+  echo "  -n, --list_interfaces: List available interfaces"
   echo "  -t, --type: Type of limit to check. Can be rx, tx or total"
   echo "  -l, --limit: Limit to check"
   echo "  -u, --unit: Unit of the limit"
@@ -110,12 +110,14 @@ usage() {
   echo "  -e, --echo_period: Optional period to echo the current bandwidth" \
     " usage, instead of echoing every vnstat check. Period defined in seconds" \
     " (default: 0). Set to 0 to disable. Useful for not cluttering the logs."
+  echo "  -f, --log_file: Optional log file to write the output"
 }
 
 while [[ "$#" -gt 0 ]]; do
   case $1 in
     -h|--help) usage; exit 0 ;;
     -i|--interfaces) interfaces="$2"; shift ;;
+    -n|--list_interfaces) list_interfaces; exit 0 ;;
     -t|--type) type="$2"; shift ;;
     -l|--limit) limit="$2"; shift ;;
     -u|--unit) unit="$2"; shift ;;
@@ -123,6 +125,7 @@ while [[ "$#" -gt 0 ]]; do
     -p|--period) period="$2"; shift ;;
     -s|--sleep) sleep_time="$2"; shift ;;
     -e|--echo_period) echo_period="$2"; shift ;;
+    -f|--log_file) log_file="$2"; shift ;;
     *) echo "Unknown parameter passed: $1"; exit 1 ;;
   esac
   shift
@@ -143,7 +146,7 @@ if [[ -z $interfaces ]]; then
   error "Interfaces are required"
 fi
 if [[ $interfaces == "all" ]]; then
-  interfaces=$(listbasenterfaces)
+  interfaces=$(list_interfaces)
   interfaces=$(echo $interfaces | sed 's/ /+/g')
 fi
 available_interfaces=$(list_interfaces)
